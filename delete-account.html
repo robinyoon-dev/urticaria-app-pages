@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>계정 삭제 · 두드러기 기록</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>두드러기 기록 계정 삭제</h1>
+    <p>계정을 삭제하면 서버에 저장된 다음 기록이 모두 즉시 지워지며, 되돌릴 수 없습니다.</p>
+    <ul>
+      <li>계정 정보 (이메일, 비밀번호)</li>
+      <li>UAS 점수와 함께 기록한 내용</li>
+      <li>처방과 복약 기록</li>
+      <li>주사 기록</li>
+      <li>가려움 기록</li>
+    </ul>
+
+    <h2>앱에서 삭제하기</h2>
+    <p>앱의 <b>계정</b> 탭 맨 아래에 있는 <b>계정 삭제</b>를 누르면 됩니다. 앱에서 삭제하면 그 기기에 남은 기록과 알림도 함께 지워집니다.</p>
+
+    <h2>이 페이지에서 삭제하기</h2>
+    <p class="muted">앱을 지웠거나 기기를 쓸 수 없을 때 이용하세요. 앱에서 가입한 이메일과 비밀번호로 로그인해야 합니다.</p>
+
+    <form id="sign-in" class="card">
+      <label>이메일<input id="email" type="email" autocomplete="email" required></label>
+      <label>비밀번호<input id="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">로그인</button>
+    </form>
+
+    <form id="delete" class="card" hidden>
+      <p><b id="signed-in-email"></b> 계정으로 로그인했습니다.</p>
+      <label class="check"><input id="confirm" type="checkbox"> 계정과 모든 기록이 지워지고 되돌릴 수 없다는 것을 이해했습니다.</label>
+      <button id="delete-button" type="submit" class="danger" disabled>계정 삭제</button>
+    </form>
+
+    <p id="message" class="message" role="status"></p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const client = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: false },
+    });
+    const $ = (id) => document.getElementById(id);
+
+    function show(text, kind) {
+      $('message').textContent = text;
+      $('message').className = 'message ' + (kind || '');
+    }
+
+    $('sign-in').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      button.disabled = true;
+      show('');
+      const { data, error } = await client.auth.signInWithPassword({
+        email: $('email').value.trim(),
+        password: $('password').value,
+      });
+      button.disabled = false;
+      if (error) {
+        show('로그인하지 못했습니다. 이메일과 비밀번호를 확인해 주세요.', 'error');
+        return;
+      }
+      $('password').value = '';
+      $('signed-in-email').textContent = data.user.email;
+      $('sign-in').hidden = true;
+      $('delete').hidden = false;
+    });
+
+    $('confirm').addEventListener('change', () => {
+      $('delete-button').disabled = !$('confirm').checked;
+    });
+
+    $('delete').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      $('delete-button').disabled = true;
+      const { error } = await client.rpc('delete_own_account');
+      if (error) {
+        show('계정을 삭제하지 못했습니다. 잠시 뒤 다시 시도해 주세요. (' + error.message + ')', 'error');
+        $('delete-button').disabled = false;
+        return;
+      }
+      await client.auth.signOut({ scope: 'local' });
+      $('delete').hidden = true;
+      show('계정과 모든 기록을 삭제했습니다. 기기에 앱이 남아 있다면 앱을 지워 주세요.', 'ok');
+    });
+  </script>
+</body>
+</html>
