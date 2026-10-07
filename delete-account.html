@@ -11,7 +11,7 @@
     <h1>두드러기 기록 계정 삭제</h1>
     <p>계정을 삭제하면 서버에 저장된 다음 기록이 모두 즉시 지워지며, 되돌릴 수 없습니다.</p>
     <ul>
-      <li>계정 정보 (이메일, 비밀번호)</li>
+      <li>계정 정보 (이메일, 비밀번호, Google로 로그인한 경우 Google에서 받은 이름과 프로필 정보)</li>
       <li>UAS 점수와 함께 기록한 내용</li>
       <li>처방과 복약 기록</li>
       <li>주사 기록</li>
@@ -22,9 +22,14 @@
     <p>앱의 <b>계정</b> 탭 맨 아래에 있는 <b>계정 삭제</b>를 누르면 됩니다. 앱에서 삭제하면 그 기기에 남은 기록과 알림도 함께 지워집니다.</p>
 
     <h2>이 페이지에서 삭제하기</h2>
-    <p class="muted">앱을 지웠거나 기기를 쓸 수 없을 때 이용하세요. 앱에서 가입한 이메일과 비밀번호로 로그인해야 합니다.</p>
+    <p class="muted">앱을 지웠거나 기기를 쓸 수 없을 때 이용하세요. 앱에서 로그인한 방법과 같은 방법으로 로그인해야 합니다.</p>
+
+    <div id="google" class="card">
+      <button id="google-button" type="button" class="secondary">Google로 로그인</button>
+    </div>
 
     <form id="sign-in" class="card">
+      <p class="muted">이메일로 가입했다면 이메일과 비밀번호로 로그인하세요.</p>
       <label>이메일<input id="email" type="email" autocomplete="email" required></label>
       <label>비밀번호<input id="password" type="password" autocomplete="current-password" required></label>
       <button type="submit">로그인</button>
@@ -52,6 +57,41 @@
       $('message').className = 'message ' + (kind || '');
     }
 
+    function showDeleteForm(user) {
+      $('signed-in-email').textContent = user.email;
+      $('google').hidden = true;
+      $('sign-in').hidden = true;
+      $('delete').hidden = false;
+    }
+
+    // Google 로그인을 마치고 이 페이지로 돌아오면 주소에 담긴 세션을 읽어 삭제 화면을 보여 준다.
+    client.auth.getSession().then(({ data }) => {
+      // Google 로그인 화면에서 취소하거나 오류가 나면 주소에 error가 붙어 돌아온다.
+      const returned = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
+      if (returned.has('error')) {
+        history.replaceState(null, '', location.pathname);
+        show('Google로 로그인하지 못했습니다. 다시 시도해 주세요.', 'error');
+        return;
+      }
+      if (data.session) {
+        history.replaceState(null, '', location.pathname);
+        showDeleteForm(data.session.user);
+      }
+    });
+
+    $('google-button').addEventListener('click', async () => {
+      $('google-button').disabled = true;
+      show('');
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: location.origin + location.pathname },
+      });
+      if (error) {
+        $('google-button').disabled = false;
+        show('Google로 로그인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'error');
+      }
+    });
+
     $('sign-in').addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = event.submitter;
@@ -67,9 +107,7 @@
         return;
       }
       $('password').value = '';
-      $('signed-in-email').textContent = data.user.email;
-      $('sign-in').hidden = true;
-      $('delete').hidden = false;
+      showDeleteForm(data.user);
     });
 
     $('confirm').addEventListener('change', () => {
